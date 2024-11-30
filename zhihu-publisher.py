@@ -1,4 +1,5 @@
-
+# pip config set global.proxy http://proxy-dmz.intel.com:912
+# python zhihu-publisher.py --input="./Data/一个测试文档.md"
 
 # Usage: This program aims to transfer your markdown file into a way zhihu.com can recognize correctly.
 #        It will mainly deal with your local images and the formulas inside.
@@ -136,6 +137,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     args.used_images = []
+    print("Start to transfer.")
     if args.input is None:
         raise FileNotFoundError("Please input the file's path to start!")
     else:
@@ -147,5 +149,6 @@ if __name__ == "__main__":
         if not op.exists(args.image_folder_path):
             os.makedirs(args.image_folder_path)
                      
-        print(args.image_folder_path)
+        print("args.image_folder_path:", args.image_folder_path)
         process_for_zhihu()
+print("Down transfer.")
