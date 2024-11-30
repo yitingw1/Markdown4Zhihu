@@ -4,7 +4,7 @@
 
 **以前，torchdynamo 会严重干扰 DDP 中的 计算通信重叠 compute-communication overlap**，以至于使用 dynamo 进行 DDP 训练的速度比使用 eager 进行 DDP 训练的速度慢 25%。**我们修改了 dynamo，在检测到 DDP 时添加额外的graph break，以恢复计算通信重叠的机会。**通过这些新的更改，使用 dynamo 进行 DDP 的速度不会比使用 eager 进行 DDP 慢 1% 以上，使用 torchinductor 进行编译时，在 64 个 gpu 上比 eager 快 15%。这些结果基于 6 个 OSS 模型的基准测试。
 
-**Torch Dynamo**
+## **Torch Dynamo**
 
 如果您是 TorchDynamo 的新手，以下链接将帮助您了解最新探索。TorchDynamo 从 Python 字节码生成 FX 图，并将各种后端与 TorchDynamo 集成以完成模型的推理/训练。未来，借助成本模型，TorchDynamo 可以自动为每个子图选择最佳后端，以实现最佳性能。
 
@@ -19,7 +19,7 @@
 - [TorchDynamo Update 10: Integrating with PyTorch/XLA for Inference and Training](https://dev-discuss.pytorch.org/t/torchdynamo-update-10-integrating-with-pytorch-xla-for-inference-and-training/935)
 - [TorchDynamo Update 11: Making FSDP and Dynamo Work Together](https://dev-discuss.pytorch.org/t/torchdynamo-update-11-making-fsdp-and-dynamo-work-together/1037)
 
-**Background**
+## **Background**
 
 why Dynamo doesn’t work well with DDP？
 
@@ -34,50 +34,50 @@ DDP (Distributed Data Parallel) 分布式训练，用于synchronously training s
 5. 使用allreduce call来同步grad。一个allreduce call会在不同的ranks之间进行communicate。在allreduce之后，不同rank的梯度又会变成一样的（例如，都变成不同rank的梯度的平均值）
 6. 跑optimizer
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826094004256.png" alt="image-20240826094004256" style="zoom:80%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826094004256_1.png" alt="image-20240826094004256" style="zoom:80%;" />
 
 在上图中，我们可以看到<u>步骤 4 和步骤 5 是通过允许 allreduce 在反向传播完成之前启动而结合在一起的</u>。通过将部分通信与反向传递的其余计算重叠，这可以加快训练过程。这就是当今**eager DDP 训练**的工作方式。默认情况下，allreduce 被收集到”buckets" 中，这些存储桶是通过启发式方法选择的，该启发式方法试图生成 25MB 的buckets（大小可配置）。
 
 但是 - 一旦我们**启用 dynamo**(如下图)，dynamo 就会将各个内核编译成单个graph（如果发生graph break，则编译成少量graph）。然后，直到整个反向传递完成，同步才能发生。
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826094036569.png" alt="image-20240826094036569" style="zoom:80%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826094036569_1.png" alt="image-20240826094036569" style="zoom:80%;" />
 
 在上图中，我们可以看到，如果使用 dynamo，DDP allreduce 直到整个反向传递计算完成才会启动。**在许多情况下，通信/计算重叠机会的损失可能比inductor提供的加速更为显著。**
 
 
 
-**Solution**
+## **Solution**
 
 DDP Optimizer, 其执行以下操作：
 
 + 检测DDP是否active
 + 如果是，则DDP Optimizer会识别DDP bucket大小并将 dynamo 图拆分为子图，以便每个子图中参数大小的总和大致等于bucket大小。
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826100037373.png" alt="image-20240826100037373" style="zoom:80%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826100037373_1.png" alt="image-20240826100037373" style="zoom:80%;" />
 
 DDPOptimizer 使用的启发式方法并不总是会产生与eager DDP 产生的bucket相同的bucket；我们假设eager DDP 策略启发式方法也不是完美的，特别是在可能出现额外graph break的情况下。
 
-**Results**
+## **Results**
 
 在**没有使用DDPOptimizer**的情况下，我们能够对比 DDP+dynamo 和 DDP+eager的latency，能够发现，当rank>1时，dynamo有时候比eager还要差25%
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826100511541.png" alt="image-20240826100511541" style="zoom:67%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826100511541_1.png" alt="image-20240826100511541" style="zoom:67%;" />
 
 上图显示了不使用 DDPOptimizer 时 DDP 训练中 eager 和 inductor 之间的延迟比较。例如，timm_VIT 中约 25% 的减速： 64 个 gpu 上约 1720ms 的 eager 延迟，而 64 个 gpu 上的 inductor 延迟约为 2300ms。
 
 在使用了DDPOptimizer的情况下，我们做相同的对比，可以发现DDP和eager相比少于1%的worse。而在64 gpu的配置下，最多有15%的性能提升。
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826100838355.png" alt="image-20240826100838355" style="zoom:67%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826100838355_1.png" alt="image-20240826100838355" style="zoom:67%;" />
 
 我们同样可以比较DDPOptimizer带来每个model的性能提升。下面的表格是DDP+dynamo 和DDP+dynamo+DDPOptimizer的latency对比。
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826101020753.png" alt="image-20240826101020753" style="zoom:67%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826101020753_1.png" alt="image-20240826101020753" style="zoom:67%;" />
 
 我们发现，**在大多数情况下，对于 1 node（即 8 GPU）配置，DDPOptimizer 带来的益处非常小（甚至会减慢速度）**，<u>因为这种配置的通信时间更短</u>。**但对于通过网络进行通信的多节点配置，我们看到了更大的加速**，尤其是对于 hf_T5_large 或 timm_VIT 等较大的模型。
 
 
 
-**Caveats 注意事项**
+## **注意事项**
 
 **1.DDP 需要在 static_graph=False 的情况下运行。**
 
@@ -100,13 +100,13 @@ DDPOptimizer 使用的启发式方法并不总是会产生与eager DDP 产生的
 
 
 
-**Next Steps**
+## **Next Steps**
 
-+ FSDP - @wconstab 和 @aazzolini 已经开始调查使用 FSDP 模型运行 dynamo 时出现的问题。
++ FSDP - 已经开始调查使用 FSDP 模型运行 dynamo 时出现的问题。
 
 + 与 DDP 更好地集成可能会提供对 static_graph=True 的支持，或提供更好的性能改进。目前，<u>DDPOptimizer 会尽最大努力匹配 DDP 的 bucket；然后 DDP 根据自己的启发式方法重新划分 bucket，这可能并不总是与 DDPOptimizer 匹配。这可能会导致延迟的 allreduce 调用。</u>如果 DDPOptimizer 可以将其 bucket 选择提供给 DDP，那么这将不是问题。
 
-### 源码
+## 源码简述
 
 **class DDPOptimizer**相关在 torch/_dynamo/backends/distributed.py 
 
@@ -207,11 +207,7 @@ if config._get_optimize_ddp_mode() == "ddp_optimizer":
             )
 ```
 
-
-
-
-
-**Improvements for DDP Optimizer** https://github.com/pytorch/pytorch/pull/87549
+后续PR：[Improvements for DDP Optimizer](https://github.com/pytorch/pytorch/pull/87549)
 
 + 增加了对“first_bucket_cap”参数的支持，以便更精确地对齐bucketing。 在DDP情况下，这可能会使得第一个bucket较小
 + 重构bucket拆分逻辑以使其更清晰 

@@ -4,7 +4,7 @@
 
 **以前，torchdynamo 会严重干扰 DDP 中的 计算通信重叠 compute-communication overlap**，以至于使用 dynamo 进行 DDP 训练的速度比使用 eager 进行 DDP 训练的速度慢 25%。**我们修改了 dynamo，在检测到 DDP 时添加额外的graph break，以恢复计算通信重叠的机会。**通过这些新的更改，使用 dynamo 进行 DDP 的速度不会比使用 eager 进行 DDP 慢 1% 以上，使用 torchinductor 进行编译时，在 64 个 gpu 上比 eager 快 15%。这些结果基于 6 个 OSS 模型的基准测试。
 
-**Torch Dynamo**
+## **Torch Dynamo**
 
 如果您是 TorchDynamo 的新手，以下链接将帮助您了解最新探索。TorchDynamo 从 Python 字节码生成 FX 图，并将各种后端与 TorchDynamo 集成以完成模型的推理/训练。未来，借助成本模型，TorchDynamo 可以自动为每个子图选择最佳后端，以实现最佳性能。
 
@@ -19,7 +19,7 @@
 - [TorchDynamo Update 10: Integrating with PyTorch/XLA for Inference and Training](https://dev-discuss.pytorch.org/t/torchdynamo-update-10-integrating-with-pytorch-xla-for-inference-and-training/935)
 - [TorchDynamo Update 11: Making FSDP and Dynamo Work Together](https://dev-discuss.pytorch.org/t/torchdynamo-update-11-making-fsdp-and-dynamo-work-together/1037)
 
-**Background**
+## **Background**
 
 why Dynamo doesn’t work well with DDP？
 
@@ -46,7 +46,7 @@ DDP (Distributed Data Parallel) 分布式训练，用于synchronously training s
 
 
 
-**Solution**
+## **Solution**
 
 DDP Optimizer, 其执行以下操作：
 
@@ -57,7 +57,7 @@ DDP Optimizer, 其执行以下操作：
 
 DDPOptimizer 使用的启发式方法并不总是会产生与eager DDP 产生的bucket相同的bucket；我们假设eager DDP 策略启发式方法也不是完美的，特别是在可能出现额外graph break的情况下。
 
-**Results**
+## **Results**
 
 在**没有使用DDPOptimizer**的情况下，我们能够对比 DDP+dynamo 和 DDP+eager的latency，能够发现，当rank>1时，dynamo有时候比eager还要差25%
 
@@ -77,7 +77,7 @@ DDPOptimizer 使用的启发式方法并不总是会产生与eager DDP 产生的
 
 
 
-**Caveats 注意事项**
+## **注意事项**
 
 **1.DDP 需要在 static_graph=False 的情况下运行。**
 
@@ -100,13 +100,13 @@ DDPOptimizer 使用的启发式方法并不总是会产生与eager DDP 产生的
 
 
 
-**Next Steps**
+## **Next Steps**
 
-+ FSDP - @wconstab 和 @aazzolini 已经开始调查使用 FSDP 模型运行 dynamo 时出现的问题。
++ FSDP - 已经开始调查使用 FSDP 模型运行 dynamo 时出现的问题。
 
 + 与 DDP 更好地集成可能会提供对 static_graph=True 的支持，或提供更好的性能改进。目前，<u>DDPOptimizer 会尽最大努力匹配 DDP 的 bucket；然后 DDP 根据自己的启发式方法重新划分 bucket，这可能并不总是与 DDPOptimizer 匹配。这可能会导致延迟的 allreduce 调用。</u>如果 DDPOptimizer 可以将其 bucket 选择提供给 DDP，那么这将不是问题。
 
-### 源码
+## 源码简述
 
 **class DDPOptimizer**相关在 torch/_dynamo/backends/distributed.py 
 
@@ -207,11 +207,7 @@ if config._get_optimize_ddp_mode() == "ddp_optimizer":
             )
 ```
 
-
-
-
-
-**Improvements for DDP Optimizer** https://github.com/pytorch/pytorch/pull/87549
+后续PR：[Improvements for DDP Optimizer](https://github.com/pytorch/pytorch/pull/87549)
 
 + 增加了对“first_bucket_cap”参数的支持，以便更精确地对齐bucketing。 在DDP情况下，这可能会使得第一个bucket较小
 + 重构bucket拆分逻辑以使其更清晰 
