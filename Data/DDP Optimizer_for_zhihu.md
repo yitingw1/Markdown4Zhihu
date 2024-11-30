@@ -34,13 +34,13 @@ DDP (Distributed Data Parallel) 分布式训练，用于synchronously training s
 5. 使用allreduce call来同步grad。一个allreduce call会在不同的ranks之间进行communicate。在allreduce之后，不同rank的梯度又会变成一样的（例如，都变成不同rank的梯度的平均值）
 6. 跑optimizer
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240826094004256.png" alt="image-20240826094004256" style="zoom:80%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826094004256.png" alt="image-20240826094004256" style="zoom:80%;" />
 
 在上图中，我们可以看到<u>步骤 4 和步骤 5 是通过允许 allreduce 在反向传播完成之前启动而结合在一起的</u>。通过将部分通信与反向传递的其余计算重叠，这可以加快训练过程。这就是当今**eager DDP 训练**的工作方式。默认情况下，allreduce 被收集到”buckets" 中，这些存储桶是通过启发式方法选择的，该启发式方法试图生成 25MB 的buckets（大小可配置）。
 
 但是 - 一旦我们**启用 dynamo**(如下图)，dynamo 就会将各个内核编译成单个graph（如果发生graph break，则编译成少量graph）。然后，直到整个反向传递完成，同步才能发生。
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240826094036569.png" alt="image-20240826094036569" style="zoom:80%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826094036569.png" alt="image-20240826094036569" style="zoom:80%;" />
 
 在上图中，我们可以看到，如果使用 dynamo，DDP allreduce 直到整个反向传递计算完成才会启动。**在许多情况下，通信/计算重叠机会的损失可能比inductor提供的加速更为显著。**
 
@@ -53,7 +53,7 @@ DDP Optimizer, 其执行以下操作：
 + 检测DDP是否active
 + 如果是，则DDP Optimizer会识别DDP bucket大小并将 dynamo 图拆分为子图，以便每个子图中参数大小的总和大致等于bucket大小。
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240826100037373.png" alt="image-20240826100037373" style="zoom:80%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826100037373.png" alt="image-20240826100037373" style="zoom:80%;" />
 
 DDPOptimizer 使用的启发式方法并不总是会产生与eager DDP 产生的bucket相同的bucket；我们假设eager DDP 策略启发式方法也不是完美的，特别是在可能出现额外graph break的情况下。
 
@@ -61,17 +61,17 @@ DDPOptimizer 使用的启发式方法并不总是会产生与eager DDP 产生的
 
 在**没有使用DDPOptimizer**的情况下，我们能够对比 DDP+dynamo 和 DDP+eager的latency，能够发现，当rank>1时，dynamo有时候比eager还要差25%
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240826100511541.png" alt="image-20240826100511541" style="zoom:67%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826100511541.png" alt="image-20240826100511541" style="zoom:67%;" />
 
 上图显示了不使用 DDPOptimizer 时 DDP 训练中 eager 和 inductor 之间的延迟比较。例如，timm_VIT 中约 25% 的减速： 64 个 gpu 上约 1720ms 的 eager 延迟，而 64 个 gpu 上的 inductor 延迟约为 2300ms。
 
 在使用了DDPOptimizer的情况下，我们做相同的对比，可以发现DDP和eager相比少于1%的worse。而在64 gpu的配置下，最多有15%的性能提升。
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240826100838355.png" alt="image-20240826100838355" style="zoom:67%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826100838355.png" alt="image-20240826100838355" style="zoom:67%;" />
 
 我们同样可以比较DDPOptimizer带来每个model的性能提升。下面的表格是DDP+dynamo 和DDP+dynamo+DDPOptimizer的latency对比。
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240826101020753.png" alt="image-20240826101020753" style="zoom:67%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/DDP Optimizer/image-20240826101020753.png" alt="image-20240826101020753" style="zoom:67%;" />
 
 我们发现，**在大多数情况下，对于 1 node（即 8 GPU）配置，DDPOptimizer 带来的益处非常小（甚至会减慢速度）**，<u>因为这种配置的通信时间更短</u>。**但对于通过网络进行通信的多节点配置，我们看到了更大的加速**，尤其是对于 hf_T5_large 或 timm_VIT 等较大的模型。
 

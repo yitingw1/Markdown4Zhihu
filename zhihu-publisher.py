@@ -149,7 +149,7 @@ if __name__ == "__main__":
 
         args.current_script_data_path = str(Path(__file__).absolute().parent / 'Data')
         # args.image_folder_path = op.join(args.current_script_data_path, args.input.stem)
-        args.input_img_dir = "imgs"
+        args.input_img_dir = args.input.stem #"imgs"
         args.image_folder_path = op.join(args.current_script_data_path, args.input_img_dir)
         if not op.exists(args.image_folder_path):
             os.makedirs(args.image_folder_path)
