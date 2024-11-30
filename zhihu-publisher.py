@@ -52,6 +52,9 @@ def formula_ops(_lines):
 def rename_image_ref(m, original=True):
     # global image_folder_path
     ori_path = m.group(2) if original else m.group(1)
+    # print("m.group(2):", m.group(2), " m.group(1):", m.group(1))
+    # m.group(2): ./imgs/image-20240806220458821.png  m.group(1): image-20240806220458821
+    # input("Stop Here:")
     try:
         if op.exists(ori_path):
             full_img_path = ori_path
@@ -88,9 +91,9 @@ def rename_image_ref(m, original=True):
     print('image_ref_name',image_ref_name)
     
     if original:
-        return "!["+m.group(1)+"]("+GITHUB_REPO_PREFIX+args.input.stem+"/"+image_ref_name+")"
+        return "!["+m.group(1)+"]("+GITHUB_REPO_PREFIX+args.input_img_dir+"/"+image_ref_name+")"
     else:
-        return '<img src="'+GITHUB_REPO_PREFIX+args.input.stem+"/" +image_ref_name +'"'
+        return '<img src="'+GITHUB_REPO_PREFIX+args.input_img_dir+"/" +image_ref_name +'"'
 
 def cleanup_image_folder():
     actual_image_paths = [op.join(args.image_folder_path, i) for i in os.listdir(args.image_folder_path) if op.isfile(op.join(args.image_folder_path, i))]
@@ -145,10 +148,14 @@ if __name__ == "__main__":
         args.file_parent = str(args.input.parent)
 
         args.current_script_data_path = str(Path(__file__).absolute().parent / 'Data')
-        args.image_folder_path = op.join(args.current_script_data_path, args.input.stem)
+        # args.image_folder_path = op.join(args.current_script_data_path, args.input.stem)
+        args.input_img_dir = "imgs"
+        args.image_folder_path = op.join(args.current_script_data_path, args.input_img_dir)
         if not op.exists(args.image_folder_path):
             os.makedirs(args.image_folder_path)
                      
         print("args.image_folder_path:", args.image_folder_path)
+        print("args.input.stem:", args.input.stem)
+        # input("Stop Here:")
         process_for_zhihu()
 print("Down transfer.")

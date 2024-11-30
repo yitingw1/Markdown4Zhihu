@@ -39,7 +39,7 @@ Compilers don't like mutation.
 
 事实上，它是 functorch 中的 API：**functionalize**
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240806215333934.png" alt="image-20240806215333934" style="zoom:33%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240806215333934.png" alt="image-20240806215333934" style="zoom:33%;" />
 
 在 API 契约层面，这是一个非常好的思维模型。PyTorch 中有许多围绕图形捕获和图形转换的不同子系统。函数化提供的契约是，你给它一个函数 / fx.GraphModule（可能带有mutation），它会返回一个没有mutation的等效函数。
 
@@ -100,7 +100,7 @@ So if you’re a compiler operating on a PyTorch program **post-functionalizatio
 
 ### **Example 1**: simple case (1 view + mutation)
 
-![image-20240806220458821](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240806220458821.png)
+![image-20240806220458821](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240806220458821.png)
 
 ```python
 # fx_g.code
@@ -119,7 +119,7 @@ def forward(self, x_1):
 
 张量的高级索引advanced indexing通常会分解为 ATen 运算符，如 **aten.slice 和 aten.select**。给定张量的updated “slice”及其原始base，ATen 还有一些运算符表示生成“updated”的base tensor：**slice_scatter、select_scatter** 等
 
-![image-20240806222012416](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240806222012416.png)
+![image-20240806222012416](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240806222012416.png)
 
 看起来就是memory metadata操作+inplace操作(mutate)
 
@@ -142,7 +142,7 @@ def forward(self, x_1):
 
 当我们mutate别名时, 我们需要弄清楚如何将mutation传播到所有未完成的别名--
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240806222618608.png" alt="image-20240806222618608" style="zoom:50%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240806222618608.png" alt="image-20240806222618608" style="zoom:50%;" />
 
 ```python
 # fx_g.code
@@ -169,7 +169,7 @@ def forward(self, x_1):
 AOTAutograd 需要处理的有关aliasing和mutation的一些有趣案例，展示了 PT2 中的一些设计决策
 这是 PT2 堆栈 10,000 英尺视图的图片，以及功能化Functionalization在其中的位置。
 
-![image-20240812230429359](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240812230429359.png)
+![image-20240812230429359](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240812230429359.png)
 
 How does AOT Autograd use functionalization? There a bunch of interesting edge cases around how AOTAutograd needs to handle external mutations and aliasing in this doc 10 on AOTAutograd 2.0.
 
@@ -189,11 +189,11 @@ AOT Autograd 如何使用函数化？在 AOTAutog edge cases。
 
 包含mutation和graph break
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240813095011554.png" alt="image-20240813095011554" style="zoom:80%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240813095011554.png" alt="image-20240813095011554" style="zoom:80%;" />
 
 会生成两张图
 
-![image-20240813095048244](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240813095048244.png)
+![image-20240813095048244](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240813095048244.png)
 
 但有一个问题：在graph 2 中，“y” 是一个graph input，并且它会发生mutation。graph 2 是有状态的：运行它会导致可观察到的副作用。
 
@@ -235,7 +235,7 @@ AOT Autograd 有义务创建一个没有mutations的graph来优化，并且还�
 
 在上面的例子中，AOTAutograd会用上述graph2 创建下述内容
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240813103915516.png" alt="image-20240813103915516" style="zoom:80%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240813103915516.png" alt="image-20240813103915516" style="zoom:80%;" />
 
 **mutated input 是会被return的，return的是"updated input",** 其作为forward graph中的addtional output。input mutations会通过y.copy_(y_updated)传回到上一张图中，防止graph break使其相互作用切断
 
@@ -245,7 +245,7 @@ AOT Autograd 有义务创建一个没有mutations的graph来优化，并且还�
 
 **specializing on aliasing relationships (and comparison to TorchScript)**
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240813105337701.png" alt="image-20240813105337701" style="zoom: 33%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240813105337701.png" alt="image-20240813105337701" style="zoom: 33%;" />
 
 ```
 tensor([4., 4.], grad_fn=<CompiledFunctionBackward>)  # out
@@ -268,7 +268,7 @@ tensor([2., 2.], grad_fn=<CompiledFunctionBackward>)  # out2
 
 两种情况下的graph如下所示：
 
-![image-20240813110643746](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240813110643746.png)
+![image-20240813110643746](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240813110643746.png)
 
 在右侧的图中，AOT Autograd 最终创建了一个graph，其中：
 
@@ -292,13 +292,13 @@ Mobile还有另一个要求：**导出的graph中的所有张量必须是连续�
 
 但是函数化在这里如何提供帮助？函数化还有另一个消除view的功能。<u>如果每个输入张量都是连续的，并且图中没有视图view，那么我们可以保证每个中间和输出也是连续的</u>。简单示例：
 
-![image-20240813121959474](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240813121959474.png)
+![image-20240813121959474](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240813121959474.png)
 
 当使用`remove='mutations_and_views'`时, 会同时在graph中去除{view} op，将其替换为{view}_copy. 这将保证连续的output。 默认是`remove='mutations'`，前面打印的都是FX graph都是`remove='mutations'`
 
 上述代码会打印下述内容：
 
-![image-20240813122050493](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/Pytorch_Functionalization/image-20240813122050493.png)
+![image-20240813122050493](https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240813122050493.png)
 
 ```python
 # FX graph (remove='mutations')

@@ -39,7 +39,7 @@ Compilers don't like mutation.
 
 事实上，它是 functorch 中的 API：**functionalize**
 
-<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/[译]Pytorch中的Functionalization/image-20240806215333934.png" alt="image-20240806215333934" style="zoom:33%;" />
+<img src="https://raw.githubusercontent.com/yitingw1/Markdown4Zhihu/master/Data/imgs/image-20240806215333934.png" alt="image-20240806215333934" style="zoom:33%;" />
 
 在 API 契约层面，这是一个非常好的思维模型。PyTorch 中有许多围绕图形捕获和图形转换的不同子系统。函数化提供的契约是，你给它一个函数 / fx.GraphModule（可能带有mutation），它会返回一个没有mutation的等效函数。
 
